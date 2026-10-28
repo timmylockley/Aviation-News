@@ -17,9 +17,10 @@
 // ========= CHANGE THIS TO YOUR LOGIN PAGE =========
 const LOGIN_URL = 'login.html';
 // ==================================================
+const REDIRECT_KEY = 'flightBriefLoginUntil';
+const GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
 const LOGIN_PROMPT_DELAY_MS = 3000;
 const MESSAGE_DISPLAY_MS = 1800;
-const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
 const PROXY = 'https://proxy.cors.dev/';
 const FEEDS = [
  {name:'Simple Flying',category:'Airlines',url:'https://simpleflying.com/feed/'},
@@ -27,7 +28,6 @@ const FEEDS = [
  {name:'Aviation Week',category:'Aerospace',url:'https://aviationweek.com/awn-rss/feed'}
 ];
 let allArticles = [];
-let inactivityTimer = null;
 
 const $ = id => document.getElementById(id);
 
@@ -139,39 +139,42 @@ async function loadNews() {
 }
 
 function redirectToLogin() {
+  // Remember that we redirected, and don't do it again for 5 minutes
+  try {
+    localStorage.setItem(REDIRECT_KEY, String(Date.now() + GRACE_PERIOD_MS));
+  } catch (e) {}
   window.location.assign(LOGIN_URL);
 }
 
-/* Force login on every page load / refresh */
-function forceLoginOnLoad() {
+function shouldForceLogin() {
+  try {
+    const until = Number(localStorage.getItem(REDIRECT_KEY) || 0);
+    // If the stored time is still in the future → still inside the 5-minute grace period
+    if (until > Date.now()) return false;
+  } catch (e) {}
+  return true; // no record or grace period expired → force login
+}
+
+function setupLoginGate() {
+  if (!shouldForceLogin()) {
+    // Still inside the 5-minute window – just show the news
+    return;
+  }
+
+  // Force login
   setTimeout(() => {
     $('loginOverlay').classList.remove('hidden');
     setTimeout(redirectToLogin, MESSAGE_DISPLAY_MS);
   }, LOGIN_PROMPT_DELAY_MS);
 }
 
-/* 5-minute inactivity timeout */
-function resetInactivityTimer() {
-  clearTimeout(inactivityTimer);
-  inactivityTimer = setTimeout(() => {
-    $('loginOverlay').classList.remove('hidden');
-    setTimeout(redirectToLogin, MESSAGE_DISPLAY_MS);
-  }, INACTIVITY_LIMIT_MS);
-}
-
-const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-activityEvents.forEach(evt => {
-  window.addEventListener(evt, resetInactivityTimer, { passive: true });
-});
-
 $('search').addEventListener('input', render);
 $('category').addEventListener('change', render);
 $('refresh').addEventListener('click', loadNews);
 $('goLogin').addEventListener('click', redirectToLogin);
 
-// Start everything
-forceLoginOnLoad();
-resetInactivityTimer();
+// Start
+setupLoginGate();
 loadNews();
 </script>
 </body>
