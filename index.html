@@ -17,74 +17,162 @@
 // ========= CHANGE THIS TO YOUR LOGIN PAGE =========
 const LOGIN_URL = 'login.html';
 // ==================================================
-const REDIRECT_KEY = 'flightBriefLoginRedirected_v1';
 const LOGIN_PROMPT_DELAY_MS = 3000;
 const MESSAGE_DISPLAY_MS = 1800;
-const PROXY = 'https://proxy.cors.dev/'; // Public CORS proxy; availability and usage limits can change.
+const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
+const PROXY = 'https://proxy.cors.dev/';
 const FEEDS = [
  {name:'Simple Flying',category:'Airlines',url:'https://simpleflying.com/feed/'},
  {name:'FLYING Magazine',category:'General Aviation',url:'https://www.flyingmag.com/feed/'},
  {name:'Aviation Week',category:'Aerospace',url:'https://aviationweek.com/awn-rss/feed'}
 ];
-let allArticles=[];
-const $=id=>document.getElementById(id);
-function textOf(parent,tag){return parent.getElementsByTagName(tag)[0]?.textContent?.trim()||''}
-function stripHTML(html){const doc=new DOMParser().parseFromString(html,'text/html');return (doc.body.textContent||'').replace(/\s+/g,' ').trim()}
-function safeURL(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}}
-async function loadFeed(feed){
- const response=await fetch(PROXY+feed.url,{credentials:'omit',signal:AbortSignal.timeout(14000)});
- if(!response.ok)throw Error(feed.name+' returned '+response.status);
- const xml=new DOMParser().parseFromString(await response.text(),'application/xml');
- if(xml.querySelector('parsererror'))throw Error('Invalid XML from '+feed.name);
- return [...xml.querySelectorAll('item, entry')].map(item=>{
-   const linkNode=item.querySelector('link');
-   const link=safeURL(linkNode?.getAttribute('href')||linkNode?.textContent?.trim()||'');
-   const dateText=textOf(item,'pubDate')||textOf(item,'published')||textOf(item,'updated');
-   const timestamp=Date.parse(dateText);
-   return {title:textOf(item,'title'),link,date:Number.isFinite(timestamp)?timestamp:0,source:feed.name,category:feed.category,description:stripHTML(textOf(item,'description')||textOf(item,'summary')).slice(0,200)};
- }).filter(a=>a.title&&a.link);
+let allArticles = [];
+let inactivityTimer = null;
+
+const $ = id => document.getElementById(id);
+
+function textOf(parent, tag) {
+  return parent.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
 }
-function render(){
- const term=$('search').value.trim().toLowerCase(),category=$('category').value;
- const visible=allArticles.filter(a=>(category==='all'||a.category===category)&&[a.title,a.source,a.description].join(' ').toLowerCase().includes(term));
- const grid=$('articles');grid.replaceChildren();
- for(const a of visible){
-  const card=document.createElement('article');card.className='card';
-  const meta=document.createElement('div');meta.className='meta';meta.textContent=a.category+' · '+a.source;
-  const heading=document.createElement('h2'),link=document.createElement('a');link.href=a.link;link.target='_blank';link.rel='noopener noreferrer';link.textContent=a.title;heading.append(link);
-  const desc=document.createElement('p');desc.textContent=a.description||'Read the full story from the publisher.';
-  const bottom=document.createElement('div');bottom.className='bottom';bottom.textContent=a.date?new Date(a.date).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):'Date unavailable';
-  card.append(meta,heading,desc,bottom);grid.append(card);
- }
- $('status').textContent=visible.length+' article'+(visible.length===1?'':'s')+' shown';
- if(!visible.length){const p=document.createElement('p');p.textContent=allArticles.length?'No articles match your search.':'No news is available right now. Try Refresh later.';grid.append(p)}
+function stripHTML(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
 }
-async function loadNews(){
- $('refresh').disabled=true;$('status').textContent='Fetching the latest headlines…';
- const results=await Promise.allSettled(FEEDS.map(loadFeed));
- const articles=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
- const seen=new Set();allArticles=articles.filter(a=>{const key=a.title.toLowerCase();if(seen.has(key))return false;seen.add(key);return true}).sort((a,b)=>b.date-a.date).slice(0,120);
- render();const failures=results.filter(r=>r.status==='rejected');
- if(failures.length)$('status').textContent+=(allArticles.length?' · Some sources could not load.':' · Sources unavailable; the public proxy may be down.');
- $('refresh').disabled=false;
+function safeURL(value) {
+  try {
+    const u = new URL(value);
+    return ['https:', 'http:'].includes(u.protocol) ? u.href : null;
+  } catch {
+    return null;
+  }
 }
-function redirectToLogin(){
- try{localStorage.setItem(REDIRECT_KEY,'true')}catch(e){console.warn('Browser storage unavailable',e)}
- window.location.assign(LOGIN_URL);
+
+async function loadFeed(feed) {
+  const response = await fetch(PROXY + feed.url, {
+    credentials: 'omit',
+    signal: AbortSignal.timeout(14000)
+  });
+  if (!response.ok) throw Error(feed.name + ' returned ' + response.status);
+  const xml = new DOMParser().parseFromString(await response.text(), 'application/xml');
+  if (xml.querySelector('parsererror')) throw Error('Invalid XML from ' + feed.name);
+  return [...xml.querySelectorAll('item, entry')].map(item => {
+    const linkNode = item.querySelector('link');
+    const link = safeURL(linkNode?.getAttribute('href') || linkNode?.textContent?.trim() || '');
+    const dateText = textOf(item, 'pubDate') || textOf(item, 'published') || textOf(item, 'updated');
+    const timestamp = Date.parse(dateText);
+    return {
+      title: textOf(item, 'title'),
+      link,
+      date: Number.isFinite(timestamp) ? timestamp : 0,
+      source: feed.name,
+      category: feed.category,
+      description: stripHTML(textOf(item, 'description') || textOf(item, 'summary')).slice(0, 200)
+    };
+  }).filter(a => a.title && a.link);
 }
-function setupFirstVisit(){
- let alreadyRedirected=false;
- try{alreadyRedirected=localStorage.getItem(REDIRECT_KEY)==='true'}catch(e){console.warn('Browser storage unavailable',e)}
- if(alreadyRedirected)return;
- setTimeout(()=>{
-  $('loginOverlay').classList.remove('hidden');
-  setTimeout(redirectToLogin,MESSAGE_DISPLAY_MS);
- },LOGIN_PROMPT_DELAY_MS);
+
+function render() {
+  const term = $('search').value.trim().toLowerCase();
+  const category = $('category').value;
+  const visible = allArticles.filter(a =>
+    (category === 'all' || a.category === category) &&
+    [a.title, a.source, a.description].join(' ').toLowerCase().includes(term)
+  );
+  const grid = $('articles');
+  grid.replaceChildren();
+  for (const a of visible) {
+    const card = document.createElement('article');
+    card.className = 'card';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = a.category + ' · ' + a.source;
+    const heading = document.createElement('h2');
+    const link = document.createElement('a');
+    link.href = a.link;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = a.title;
+    heading.append(link);
+    const desc = document.createElement('p');
+    desc.textContent = a.description || 'Read the full story from the publisher.';
+    const bottom = document.createElement('div');
+    bottom.className = 'bottom';
+    bottom.textContent = a.date
+      ? new Date(a.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : 'Date unavailable';
+    card.append(meta, heading, desc, bottom);
+    grid.append(card);
+  }
+  $('status').textContent = visible.length + ' article' + (visible.length === 1 ? '' : 's') + ' shown';
+  if (!visible.length) {
+    const p = document.createElement('p');
+    p.textContent = allArticles.length
+      ? 'No articles match your search.'
+      : 'No news is available right now. Try Refresh later.';
+    grid.append(p);
+  }
 }
-$('search').addEventListener('input',render);
-$('category').addEventListener('change',render);
-$('refresh').addEventListener('click',loadNews);
-$('goLogin').addEventListener('click',redirectToLogin);
-setupFirstVisit();loadNews();
+
+async function loadNews() {
+  $('refresh').disabled = true;
+  $('status').textContent = 'Fetching the latest headlines…';
+  const results = await Promise.allSettled(FEEDS.map(loadFeed));
+  const articles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  const seen = new Set();
+  allArticles = articles
+    .filter(a => {
+      const key = a.title.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => b.date - a.date)
+    .slice(0, 120);
+  render();
+  const failures = results.filter(r => r.status === 'rejected');
+  if (failures.length) {
+    $('status').textContent += (allArticles.length
+      ? ' · Some sources could not load.'
+      : ' · Sources unavailable; the public proxy may be down.');
+  }
+  $('refresh').disabled = false;
+}
+
+function redirectToLogin() {
+  window.location.assign(LOGIN_URL);
+}
+
+/* Force login on every page load / refresh */
+function forceLoginOnLoad() {
+  setTimeout(() => {
+    $('loginOverlay').classList.remove('hidden');
+    setTimeout(redirectToLogin, MESSAGE_DISPLAY_MS);
+  }, LOGIN_PROMPT_DELAY_MS);
+}
+
+/* 5-minute inactivity timeout */
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(() => {
+    $('loginOverlay').classList.remove('hidden');
+    setTimeout(redirectToLogin, MESSAGE_DISPLAY_MS);
+  }, INACTIVITY_LIMIT_MS);
+}
+
+const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+activityEvents.forEach(evt => {
+  window.addEventListener(evt, resetInactivityTimer, { passive: true });
+});
+
+$('search').addEventListener('input', render);
+$('category').addEventListener('change', render);
+$('refresh').addEventListener('click', loadNews);
+$('goLogin').addEventListener('click', redirectToLogin);
+
+// Start everything
+forceLoginOnLoad();
+resetInactivityTimer();
+loadNews();
 </script>
-</body></html>
+</body>
+</html>
