@@ -1,23 +1,127 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Responses | GEA Group AU</title>
-<style>
-:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark;background:#0b1120;color:#e5edf8}*{box-sizing:border-box}body{margin:0;padding:28px 16px}.wrap{max-width:1040px;margin:auto}h1{margin:0 0 8px;font-size:clamp(1.7rem,4vw,2.4rem)}p{color:#94a3b8}header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:26px}.panel{background:#151e31;border:1px solid #2b3851;border-radius:16px;padding:20px;margin-bottom:18px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}input,button{font:inherit;border-radius:10px;padding:12px 14px}input{background:#0b1120;color:#e5edf8;border:1px solid #38465d;min-width:0;flex:1}button{border:0;background:#3978f6;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:wait}.secondary{background:#293750}.status{font-size:.9rem;margin:12px 0 0}table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:13px;border-bottom:1px solid #293750;vertical-align:top;overflow-wrap:anywhere}th{color:#9caec9;font-size:.85rem}td:nth-child(2){min-width:180px}.table-wrap{overflow-x:auto}.empty{text-align:center;padding:48px 10px;color:#9caec9}.count{font-weight:600;color:#cbd5e1}.message{white-space:pre-wrap;min-width:220px}footer{font-size:.8rem;color:#718096;margin-top:20px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Responses</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: system-ui, sans-serif;
+    }
+    main { max-width: 1050px; margin: auto; padding: 32px 20px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; }
+    p { color: #94a3b8; }
+    button, input {
+      padding: 12px 15px;
+      border-radius: 9px;
+      font: inherit;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: 0;
+      cursor: pointer;
+    }
+    input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: white;
+      margin: 20px 0;
+    }
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+    }
+    .date { font-size: 13px; color: #94a3b8; }
+    .message { margin-top: 10px; overflow-wrap: anywhere; }
+  </style>
 </head>
-<body><main class="wrap">
-<header><div><h1>Form responses</h1><p>View recent submissions from your Linux Mint server.</p></div><button id="refresh" disabled>Refresh</button></header>
-<section class="panel" id="unlock"><label for="key">Admin access key</label><div class="toolbar" style="margin-top:10px"><input id="key" type="password" placeholder="Enter your private key" autocomplete="off"><button id="load">Load responses</button></div><p class="status" id="loginStatus">Your key is only held in this page while it is open. Do not put it in the GitHub source code.</p></section>
-<section class="panel" id="results" hidden><div class="toolbar"><input id="search" type="search" placeholder="Search email, message or date…" aria-label="Search responses"><span class="count" id="count"></span><button class="secondary" id="lock">Lock</button></div><p class="status" id="status" role="status"></p><div class="table-wrap"><table><thead><tr><th>Date</th><th>Email</th><th>Message</th></tr></thead><tbody id="rows"></tbody></table><div class="empty" id="empty" hidden>No matching responses.</div></div></section>
-<footer>Latest 500 stored responses · Manual refresh · Admin only</footer>
-</main>
-<script>
-const API='https://api.geagroupau.com/responses.php';
-const $=id=>document.getElementById(id);
-let adminKey='',records=[];
-function render(){const q=$('search').value.trim().toLowerCase();const items=records.filter(r=>[r.date,r.email,r.message].some(v=>String(v||'').toLowerCase().includes(q)));$('rows').replaceChildren();$('count').textContent=`${items.length} of ${records.length}`;$('empty').hidden=items.length>0;for(const r of items){const tr=document.createElement('tr');for(const field of ['date','email','message']){const td=document.createElement('td');td.textContent=r[field]||'—';if(field==='message')td.className='message';tr.append(td)}$('rows').append(tr)}}
-async function fetchResponses(){const button=$('refresh');button.disabled=true;$('load').disabled=true;$('status').textContent='Fetching responses…';try{const res=await fetch(API,{headers:{'X-Admin-Key':adminKey},cache:'no-store'});if(!res.ok)throw new Error(res.status===401?'Incorrect admin key':`Server returned ${res.status}`);const data=await res.json();if(!Array.isArray(data))throw new Error('Unexpected server response');records=data;$('unlock').hidden=true;$('results').hidden=false;$('status').textContent=`Updated ${new Date().toLocaleString()}`;render()}catch(err){$('loginStatus').textContent=`Could not load: ${err.message}`;$('status').textContent=`Could not refresh: ${err.message}`}finally{button.disabled=false;$('load').disabled=false}}
-$('load').addEventListener('click',()=>{adminKey=$('key').value.trim();if(!adminKey){$('loginStatus').textContent='Enter an admin key first.';return}$('key').value='';fetchResponses()});$('key').addEventListener('keydown',e=>{if(e.key==='Enter')$('load').click()});$('refresh').addEventListener('click',fetchResponses);$('search').addEventListener('input',render);$('lock').addEventListener('click',()=>{adminKey='';records=[];$('rows').replaceChildren();$('results').hidden=true;$('unlock').hidden=false;$('loginStatus').textContent='Enter your admin key to view responses.'});
-</script></body></html>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Responses</h1>
+        <p id="status">Loading responses...</p>
+      </div>
+      <button onclick="loadResponses()">Refresh</button>
+    </header>
+
+    <input id="search" placeholder="Search responses...">
+    <div id="results"></div>
+  </main>
+
+  <script>
+    const API = 'https://api.geagroupau.com/responses.php';
+    let responses = [];
+
+    async function loadResponses() {
+      const status = document.getElementById('status');
+      status.textContent = 'Loading...';
+
+      try {
+        const response = await fetch(API, { cache: 'no-store' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+
+        const data = await response.json();
+        responses = data.responses || [];
+        render();
+
+        status.textContent = responses.length + ' responses';
+      } catch (error) {
+        status.textContent = 'Could not load responses: ' + error.message;
+      }
+    }
+
+    function render() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const results = document.getElementById('results');
+      results.replaceChildren();
+
+      const filtered = responses.filter(item =>
+        (item.message || '').toLowerCase().includes(search) ||
+        (item.date || '').toLowerCase().includes(search)
+      );
+
+      if (!filtered.length) {
+        results.textContent = 'No responses found.';
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const date = document.createElement('div');
+        date.className = 'date';
+        date.textContent = item.date || 'Unknown date';
+
+        const message = document.createElement('div');
+        message.className = 'message';
+        message.textContent = item.message || '(No message)';
+
+        card.append(date, message);
+        results.appendChild(card);
+      });
+    }
+
+    document.getElementById('search').addEventListener('input', render);
+    loadResponses();
+  </script>
+</body>
+</html>
